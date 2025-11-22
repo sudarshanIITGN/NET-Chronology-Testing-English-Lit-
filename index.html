@@ -1,131 +1,189 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Literature Chronology Quiz</title>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Literature Chronology Quiz</title>
+<style>
     body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: auto;
-      padding: 20px;
-      background: #fafafa;
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background: #f5f5f5;
     }
-    .card {
-      border: 1px solid #ddd;
-      padding: 20px;
-      border-radius: 10px;
-      margin-top: 20px;
-      background: white;
+    h2 {
+        margin-top: 0;
     }
-    button {
-      padding: 10px 20px;
-      cursor: pointer;
-      margin-top: 10px;
+    #scoreBox {
+        padding: 10px;
+        background: #fff;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        font-weight: bold;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      font-size: 16px;
+    #quizBox, #answerBox {
+        background: white;
+        padding: 15px;
+        border-radius: 5px;
+        margin-top: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-  </style>
+    .option {
+        padding: 12px;
+        margin: 8px 0;
+        background: #eee;
+        border-radius: 5px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        user-select: none;
+    }
+    .selected {
+        background: #cce5ff;
+        border-color: #007bff;
+    }
+    #nextBtn, #submitBtn {
+        margin-top: 15px;
+        padding: 10px 15px;
+        font-size: 16px;
+        border: none;
+        background: #007bff;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+</style>
 </head>
-
 <body>
-  <h1>Literature Chronology Quiz</h1>
-  <p>Arrange the following works in the correct chronological order.</p>
 
-  <div id="quiz" class="card"></div>
-  <div id="result" class="card" style="display:none;"></div>
+<h2>Literature Chronology Quiz</h2>
 
-  <script>
-    let data = [];
-    let current = null;
-    let score = 0;
+<div id="scoreBox">Correct: 0 | Attempts: 0</div>
 
-    // Load CSV file
-    async function loadCSV() {
-      try {
-        const response = await fetch('works.csv');
-        const text = await response.text();
+<div id="quizBox">
+    <p><strong>Arrange the following works in the correct order:</strong></p>
+    <div id="options"></div>
+    <button id="submitBtn">Submit</button>
+</div>
 
-        const rows = text.trim().split('\n').map(r => r.split(','));
+<div id="answerBox" style="display:none;"></div>
 
-        // Expect header: work,year
-        data = rows.slice(1).map(r => ({
-          work: r[0],
-          year: parseInt(r[1])
-        })).filter(x => x.work && !isNaN(x.year));
+<button id="nextBtn" style="display:none;">Next Question</button>
 
-        if (data.length === 0) {
-          document.getElementById("quiz").innerHTML = "No data found in works.csv";
-          return;
-        }
+<script>
+let data = [];
+let correctCount = 0;
+let attemptsCount = 0;
+let currentQuestion = [];
+let selectedOrder = [];
 
-        newQuestion();
+// Load CSV
+fetch("works.csv")
+    .then(r => r.text())
+    .then(text => {
+        data = text.trim().split("\n").slice(1).map(row => {
+            let [work, year] = row.split(",");
+            return { work, year: parseInt(year) };
+        });
+        loadQuestion();
+    })
+    .catch(() => {
+        document.body.innerHTML = "<h3>No data found. Place works.csv in the same folder.</h3>";
+    });
 
-      } catch (e) {
-        document.getElementById("quiz").innerHTML =
-          "Error loading CSV. Make sure works.csv is in the same folder.";
-      }
+function shuffle(arr) {
+    return arr.map(v => ({ v, s: Math.random() }))
+              .sort((a, b) => a.s - b.s)
+              .map(o => o.v);
+}
+
+function loadQuestion() {
+    selectedOrder = [];
+
+    currentQuestion = shuffle(data).slice(0, 4);
+
+    let optionBox = document.getElementById("options");
+    optionBox.innerHTML = "";
+
+    currentQuestion.forEach((item, index) => {
+        let div = document.createElement("div");
+        div.className = "option";
+        div.textContent = `${item.year} – ${item.work}`;
+        div.dataset.index = index;
+
+        div.onclick = () => toggleSelect(div);
+
+        optionBox.appendChild(div);
+    });
+
+    document.getElementById("answerBox").style.display = "none";
+    document.getElementById("nextBtn").style.display = "none";
+}
+
+function toggleSelect(div) {
+    let idx = parseInt(div.dataset.index);
+    let pos = selectedOrder.indexOf(idx);
+
+    if (pos === -1) {
+        // select
+        selectedOrder.push(idx);
+        div.classList.add("selected");
+    } else {
+        // deselect
+        selectedOrder.splice(pos, 1);
+        div.classList.remove("selected");
     }
+}
 
-    // Generate a new question
-    function newQuestion() {
-      let items = [...data]
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 4);
-
-      current = items;
-
-      const quizDiv = document.getElementById('quiz');
-      const resultDiv = document.getElementById('result');
-      resultDiv.style.display = 'none';
-
-      quizDiv.innerHTML = "<strong>Arrange by year (oldest to newest):</strong><br><br>";
-
-      items.forEach((it, idx) => {
-        quizDiv.innerHTML += `${idx + 1}. ${it.work}<br>`;
-      });
-
-      quizDiv.innerHTML += `
-        <input id="answer" placeholder="Enter order e.g. 2 3 1 4" />
-        <button onclick="checkAnswer()">Submit</button>
-      `;
-    }
-
-    // Check user's answer
-    function checkAnswer() {
-      const ans = document.getElementById('answer').value.trim().split(/\s+/);
-
-      if (ans.length !== 4) {
-        alert("Enter exactly four numbers separated by spaces.");
+function submitAnswer() {
+    if (selectedOrder.length !== currentQuestion.length) {
+        alert("Select all items in the correct sequence.");
         return;
-      }
-
-      const sorted = [...current].sort((a, b) => a.year - b.year);
-      const correctOrder = sorted.map(x => current.indexOf(x) + 1);
-      const userOrder = ans.map(Number);
-
-      const isCorrect = JSON.stringify(userOrder) === JSON.stringify(correctOrder);
-      if (isCorrect) score++;
-
-      const resultDiv = document.getElementById("result");
-      resultDiv.style.display = "block";
-
-      resultDiv.innerHTML = `
-        <strong>Correct Order:</strong> ${correctOrder.join(' ')}<br><br>
-        ${sorted.map(x => `${x.year} – ${x.work}`).join('<br>')}
-        <br><br>
-        <strong>Your Score:</strong> ${score}
-        <br><br>
-        <button onclick="newQuestion()">Next Question</button>
-      `;
     }
 
-    loadCSV();
-  </script>
+    attemptsCount++;
+
+    let userSequenceYears = selectedOrder.map(i => currentQuestion[i].year);
+
+    let sorted = [...currentQuestion].sort((a,b)=>a.year-b.year);
+    let correctYears = sorted.map(x => x.year);
+    let correctIndexes = sorted.map(x => currentQuestion.indexOf(x));
+
+    if (JSON.stringify(userSequenceYears) === JSON.stringify(correctYears)) {
+        correctCount++;
+    }
+
+    updateScore();
+
+    let answerBox = document.getElementById("answerBox");
+    answerBox.style.display = "block";
+
+    let formattedCorrectOrder = correctIndexes.map(i => i+1).join(" ");
+
+    let formattedList = sorted
+        .map(item => `${item.year} – ${item.work}`)
+        .join("<br>");
+
+    answerBox.innerHTML = `
+        <p><strong>Correct Order:</strong> ${formattedCorrectOrder}</p>
+        <p>${formattedList}</p>
+    `;
+
+    document.getElementById("nextBtn").style.display = "block";
+}
+
+function updateScore() {
+    document.getElementById("scoreBox").textContent =
+        `Correct: ${correctCount} | Attempts: ${attemptsCount}`;
+}
+
+document.getElementById("submitBtn").onclick = submitAnswer;
+document.getElementById("nextBtn").onclick = loadQuestion;
+
+// Press Enter to submit
+document.addEventListener("keydown", e => {
+    if (e.key === "Enter") submitAnswer();
+});
+</script>
+
 </body>
 </html>
