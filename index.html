@@ -225,7 +225,7 @@ function submitAnswer() {
     let answerBox = document.getElementById("answerBox");
     answerBox.style.display = "block";
 
-    let userOrderText = userOrder.map(i => i + 1).join(" ");
+    /*let userOrderText = userOrder.map(i => i + 1).join(" ");*/
 
     let formattedCorrectOrder = correctIndexes.map(i => i+1).join(" ");
 
@@ -234,7 +234,6 @@ function submitAnswer() {
         .join("<br>");
 
     answerBox.innerHTML = `
-        <p><strong>Your Order:</strong> ${userOrderText}</p>
         <p><strong>Correct Order:</strong> ${formattedCorrectOrder}</p>
         <p>${formattedList}</p>
     `;
@@ -258,6 +257,7 @@ document.addEventListener("keydown", e => {
 
 </body>
 </html>
+
 
 
 
