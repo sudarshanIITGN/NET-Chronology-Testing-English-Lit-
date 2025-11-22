@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Literature Chronology Quiz</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 760px; margin: 28px auto; padding: 16px; color:#222; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    h1 { margin:0; font-size:20px; }
+    .card { border:1px solid #e0e0e0; border-radius:8px; padding:16px; margin-top:18px; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+    .muted { color:#666; font-size:14px; }
+    .controls { display:flex; gap:8px; margin-top:12px; align-items:center; }
+    input[type="text"] { padding:10px; font-size:15px; flex:1; border:1px solid #ccc; border-radius:6px; }
+    button { padding:9px 14px; font-size:14px; border-radius:6px; cursor:pointer; border:1px solid #bbb; background:#f7f7f7; }
+    button:active { transform:translateY(1px); }
+    .score { font-weight:600; }
+    pre { white-space:pre-wrap; margin:8px 0; font-family:inherit; }
+    .error { color: #b00020; font-weight:600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Literature Chronology Quiz</h1>
+    <div class="score" id="score">Score: 0 / 0</div>
+  </header>
+
+  <p class="muted">Arrange the following works in correct chronological order. Enter the indices shown (e.g. <code>3 1 4 2</code>) and press Enter. Then click <em>Next Question</em>.</p>
+
+  <div id="message" class="card" style="display:none;"></div>
+
+  <div id="quiz" class="card">
+    <div id="q-instructions"><strong>Loading questions…</strong></div>
+  </div>
+
+  <div id="result" class="card" style="display:none;"></div>
+
+<script>
+/* ========= simple robust CSV parser (handles quoted fields with commas) ========= */
+function parseCSV(text) {
+  const rows = [];
+  let i = 0, row = [], field = '', inQuotes = false;
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { field += '"'; i += 2; continue; } // escaped quote
+        inQuotes = false; i++; continue;
+      } else {
+        field += ch; i++; continue;
+      }
+    } else {
+      if (ch === ',') { row.push(field); field = ''; i++; continue; }
+      if (ch === '\n' || ch === '\r') {
+        // handle CRLF and CR
+        // consume consecutive \r or \n
+        const next = text[i+1];
+        if ((ch === '\r' && next === '\n') || (ch === '\n' && next === '\r')) i++;
+        row.push(field);
+        rows.push(row);
+        row = []; field = ''; i++;
+        continue;
+      }
+      if (ch === '"') { inQuotes = true; i++; continue; }
+      field += ch; i++; continue;
+    }
+  }
+  // push last
+  if (field !== '' || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  // remove trailing empty rows (commonly from final newline)
+  while (rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') rows.pop();
+  return rows;
+}
+
+/* ========= app logic ========= */
+
+const DATA_URL = 'works.csv'; // place your CSV here (works.csv)
+let allItems = []; // { work, year }
+let currentSet = []; // current 4 shown in shuffled order
+let score = 0, attempts = 0;
+
+const scoreDiv = document.getElementById('score');
+const quizDiv = document.getElementById('quiz');
+const resultDiv = document.getElementById('result');
+const messageDiv = document.getElementById('message');
+
+function showMessage(text, isError=false) {
+  messageDiv.style.display = 'block';
+  messageDiv.innerHTML = isError ? `<div class="error">${text}</div>` : text;
+}
+
+function hideMessage() {
+  messageDiv.style.display = 'none';
+  messageDiv.innerHTML = '';
+}
+
+function updateScoreUI() {
+  scoreDiv.textContent = `Score: ${score} / ${attempts}`;
+}
+
+/* fetch and parse CSV */
+async function loadData() {
+  try {
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL}: ${res.status} ${res.statusText}`);
+    const text = await res.text();
+    const rows = parseCSV(text);
+
+    if (rows.length === 0) throw new Error('CSV appears empty.');
+
+    // detect header row (if first row contains non-numeric year)
+    // Accept common header names: work,title,name ; year,year_published
+    const first = rows[0].map(c => (c||'').trim().toLowerCase());
+    let startIndex = 0;
+    let hasHeader = false;
+    if (first.some(h => ['work','title','name'].includes(h)) && first.some(h => ['year','published','year_published'].includes(h))) {
+      hasHeader = true;
+      startIndex = 1;
+    }
+
+    const items = [];
+    for (let r = startIndex; r < rows.length; r++) {
+      const cols = rows[r];
+      if (!cols) continue;
+      // attempt to find year and work positions
+      // prefer (work, year) or (title, year). If a row has only 2 entries, assume [work,year]
+      if (cols.length >= 2) {
+        // if header present, map by header names
+        if (hasHeader) {
+          const header = rows[0].map(h => (h||'').trim().toLowerCase());
+          const workIdx = header.findIndex(h => ['work','title','name'].includes(h));
+          const yearIdx = header.findIndex(h => ['year','published','year_published'].includes(h));
+          const work = (cols[workIdx] || '').trim();
+          const yearStr = (cols[yearIdx] || '').trim();
+          const year = parseInt(yearStr, 10);
+          if (work && !isNaN(year)) items.push({ work, year });
+        } else {
+          // no header: assume either [work,year,...] or [year,work,...]
+          const maybeYear0 = parseInt(cols[0].trim(), 10);
+          const maybeYear1 = parseInt(cols[1].trim(), 10);
+          if (!isNaN(maybeYear1)) {
+            // likely [work, year]
+            const work = cols[0].trim();
+            const year = maybeYear1;
+            if (work) items.push({ work, year });
+          } else if (!isNaN(maybeYear0)) {
+            // likely [year, work]
+            const year = maybeYear0;
+            const work = cols[1].trim();
+            if (work) items.push({ work, year });
+          } else {
+            // fallback: try last column as year
+            const last = cols[cols.length-1].trim();
+            const maybeLast = parseInt(last, 10);
+            if (!isNaN(maybeLast)) {
+              const work = cols.slice(0, cols.length-1).join(',').trim();
+              items.push({ work, year: maybeLast });
+            } // else skip row
+          }
+        }
+      }
+    }
+
+    if (items.length < 4) throw new Error('CSV must contain at least 4 valid rows (work + year). Found: ' + items.length);
+
+    allItems = items;
+    hideMessage();
+    newQuestion();
+  } catch (err) {
+    showMessage('Error loading CSV: ' + err.message, true);
+    // still render a minimal UI so the user sees the controls
+    renderEmptyQuestion();
+    console.error(err);
+  }
+}
+
+/* create and display a new question (4 random works) */
+function newQuestion() {
+  // pick 4 distinct random items
+  const pool = allItems.slice();
+  pool.sort(() => Math.random() - 0.5);
+  const chosen = pool.slice(0, 4);
+
+  // shuffle for display order
+  chosen.sort(() => Math.random() - 0.5);
+  currentSet = chosen;
+
+  // build UI
+  quizDiv.innerHTML = '<strong>Arrange the following works chronologically:</strong><br><br>';
+  const list = document.createElement('div');
+  chosen.forEach((it, idx) => {
+    const line = document.createElement('div');
+    line.textContent = `${idx+1}. ${it.work}`;
+    list.appendChild(line);
+  });
+  quizDiv.appendChild(list);
+
+  // controls
+  const controls = document.createElement('div');
+  controls.className = 'controls';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'orderInput';
+  input.placeholder = 'Enter order, e.g. 3 1 4 2';
+  controls.appendChild(input);
+  const checkBtn = document.createElement('button');
+  checkBtn.type = 'button';
+  checkBtn.textContent = 'Submit';
+  checkBtn.onclick = submitAnswer;
+  controls.appendChild(checkBtn);
+
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.textContent = 'Next Question';
+  nextBtn.onclick = newQuestion;
+  controls.appendChild(nextBtn);
+
+  quizDiv.appendChild(controls);
+
+  // allow Enter to submit
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      submitAnswer();
+      e.preventDefault();
+    }
+  });
+
+  // focus input
+  setTimeout(() => input.focus(), 80);
+
+  // hide previous result
+  resultDiv.style.display = 'none';
+}
+
+/* when CSV failed: render minimal UI so input/button exist */
+function renderEmptyQuestion() {
+  quizDiv.innerHTML = '<strong>(No data)</strong><br><br>Place a valid <code>works.csv</code> in the same folder. Expected columns: <code>work,year</code> or <code>title,year</code>.';
+  const controls = document.createElement('div');
+  controls.className = 'controls';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Enter order (disabled)';
+  input.disabled = true;
+  controls.appendChild(input);
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.textContent = 'Retry load';
+  nextBtn.onclick = () => loadData();
+  controls.appendChild(nextBtn);
+  quizDiv.appendChild(controls);
+}
+
+/* submit and evaluate user's sequence */
+function submitAnswer() {
+  const input = document.getElementById('orderInput');
+  if (!input) return;
+  const raw = input.value.trim();
+  if (!raw) { resultDiv.style.display = 'block'; resultDiv.innerHTML = '<div class="error">Enter an order first.</div>'; return; }
+
+  const parts = raw.split(/\s+/).map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+  if (parts.length !== 4 || parts.some(n => n < 1 || n > 4)) {
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="error">Invalid input. Enter four numbers between 1 and 4, e.g. 3 1 4 2.</div>';
+    return;
+  }
+
+  // create user's arranged list of objects (in display order)
+  const userArranged = parts.map(idx => currentSet[idx - 1]);
+
+  // compute correct chronological order based on year
+  const correctSorted = currentSet.slice().sort((a,b) => a.year - b.year);
+  // correct order as indices relative to displayed (1-based)
+  const correctIndices = correctSorted.map(obj => {
+    return (currentSet.indexOf(obj) + 1);
+  });
+
+  // scoring
+  attempts++;
+  const userWorks = userArranged.map(o => o.work);
+  const actualWorks = correctSorted.map(o => o.work);
+  if (JSON.stringify(userWorks) === JSON.stringify(actualWorks)) score++;
+  updateScoreUI();
+
+  // show result exactly as you requested
+  const lines = correctSorted.map(o => `${o.year} – ${o.work}`);
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = `<strong>Correct Order: ${correctIndices.join(' ')}</strong><br><br><pre>${lines.join('\\n')}</pre>`;
+}
+
+/* start */
+updateScoreUI();
+loadData();
+</script>
+</body>
+</html>
