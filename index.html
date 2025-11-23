@@ -87,18 +87,58 @@
         display: block;
         clear: both;
     }
-    /*mobile friendly operations*/
-    @media (max-width: 480px) {
-        #submitBtn,
-        #nextBtn {
-            width: 45%;
-        }
+    /* Mobile Optimization */
+    @media (max-width: 600px) {
 
-        .option {
-            font-size: 17px;
-            padding: 15px;
-        }
+    /* 1. Make the container take up full height to manage spacing */
+    body {
+        display: flex;
+        flex-direction: column;
+        min-height: 95vh; /* Uses viewport height */
+        margin: 10px;
     }
+
+    /* 2. Squish the Title to save space */
+    h2 {
+        font-size: 1.2rem;
+        margin-bottom: 5px;
+        text-align: center;
+    }
+
+    #scoreBox {
+        padding: 8px;
+        font-size: 14px;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+
+    /* 3. The Options (Top 50% idea) */
+    .option {
+        padding: 12px;       /* Slightly smaller padding */
+        margin: 8px 0;       /* Less gap between boxes */
+        font-size: 16px;
+    }
+
+    /* 4. The Buttons (Full Width & Easy to Hit) */
+    #submitBtn, #nextBtn {
+        width: 100%;         /* Spans entire width */
+        max-width: 100%;     /* Overrides 40% limit from desktop view */
+        padding: 16px;       /* Taller button for easier tapping */
+        font-size: 18px;
+        margin-top: 10px;
+        float: none;         /* Removes the 'float: right' behavior */
+        display: block;      /* Ensures it sits on its own line */
+        box-sizing: border-box; /* Ensures padding is within the screen */
+    }
+
+    /* 5. The Answer Box (Appears clearly below) */
+    #answerBox {
+        margin-top: 15px;
+        font-size: 15px;
+        background: #252525 !important; /* Slightly lighter to stand out */
+    }
+}
+    
 </style>
 </head>
 <body>
@@ -225,7 +265,6 @@ function submitAnswer() {
     let answerBox = document.getElementById("answerBox");
     answerBox.style.display = "block";
 
-    /*let userOrderText = userOrder.map(i => i + 1).join(" ");*/
     let formattedUserOrder = selectedOrder.map(i => i + 1).join(" ");
     let formattedCorrectOrder = correctIndexes.map(i => i+1).join(" ");
 
@@ -240,6 +279,7 @@ function submitAnswer() {
     `;
 
     document.getElementById("nextBtn").style.display = "block";
+    answerBox.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function updateScore() {
@@ -254,14 +294,11 @@ document.getElementById("nextBtn").onclick = loadQuestion;
 document.addEventListener("keydown", e => {
     if (e.key === "Enter") submitAnswer();
 });
+
 </script>
 
 </body>
 </html>
-
-
-
-
 
 
 
